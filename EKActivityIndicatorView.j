@@ -9,12 +9,25 @@ var SharedEKActivityIndicatorViewAnimation = nil;
     CPArray     _tailComponents;
     CPArray     _stepColors;
     int         tailLength @accessors;
+
+    float       size;
+    float       radius;
+    float       minx;
+    float       midx;
+    float       maxx;
+    float       miny;
+    float       midy;
+    float       maxy;
 }
 
 - (id)initWithFrame:(CGRect)aFrame
 {
     self = [super initWithFrame:aFrame];
-    if(self) {
+    if (self)
+    {
+        // Precalculate.
+        [self setFrame:aFrame];
+
         _animation = [_EKActivityIndicatorViewAnimation sharedIndicatorViewAnimation];
 
         // Go from black to 15% opacity by default in 9 steps. This matches the default spinner.gif roughly.
@@ -90,7 +103,28 @@ var SharedEKActivityIndicatorViewAnimation = nil;
     }
 }
 
-- (void)drawRect:(CGrect)rect
+- (void)setFrame:(CGRect)aRect
+{
+    [super setFrame:aRect];
+
+    var bounds = [self bounds];
+
+    size = bounds.size.width;
+
+    var thickness = size * 0.1,
+        length = size * 0.28,
+        lineRect = CGRectMake(size / 2 - thickness / 2, 0, thickness, length);
+
+    radius = thickness / 2;
+    minx = CGRectGetMinX(lineRect);
+    midx = CGRectGetMidX(lineRect);
+    maxx = CGRectGetMaxX(lineRect);
+    miny = CGRectGetMinY(lineRect);
+    midy = CGRectGetMidY(lineRect);
+    maxy = CGRectGetMaxY(lineRect);
+}
+
+- (void)drawRect:(CGRect)rect
 {
     var c = [[CPGraphicsContext currentContext] graphicsPort];
 
@@ -98,20 +132,6 @@ var SharedEKActivityIndicatorViewAnimation = nil;
 
     if (!_stepColors)
         return;
-
-    var bounds = [self bounds],
-        size = bounds.size.width,
-        thickness = bounds.size.width * 0.1,
-        length = bounds.size.width * 0.28,
-        radius = thickness / 2,
-        lineRect = CGRectMake(size / 2 - thickness / 2, 0, thickness, length),
-        minx = CGRectGetMinX(lineRect),
-        midx = CGRectGetMidX(lineRect),
-        maxx = CGRectGetMaxX(lineRect),
-        miny = CGRectGetMinY(lineRect),
-        midy = CGRectGetMidY(lineRect),
-        maxy = CGRectGetMaxY(lineRect),
-        _step = 1;
 
     CGContextTranslateCTM(c, size/2, size/2);
     CGContextRotateCTM(c, [_animation currentValue] * (Math.PI*2));
