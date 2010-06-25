@@ -1,10 +1,11 @@
 @implementation EKActivityIndicatorView : CPView
 {
-    BOOL        _isAnimating;
-    int         _step;
-    CPTimer     _timer;
+    CPAnimation _animation;
     CPColor     leadColor @accessors;
+    CPArray     _leadComponents;
     CPColor     tailColor @accessors;
+    CPArray     _tailComponents;
+    CPArray     _stepColors;
     int         tailLength @accessors;
 }
 
@@ -12,96 +13,163 @@
 {
     self = [super initWithFrame:aFrame];
     if(self) {
-        _isAnimating = NO;
+        _animation = [[_EKActivityIndicatorViewAnimation alloc] initWithActivityIndicator:self];
 
-        // Go from white to 15% opacity by default in 9 steps. This matches the default spinner.gif roughly.
-        leadColor = [CPColor colorWithCalibratedWhite:0.0 alpha:1.0];
-        tailColor = [CPColor colorWithCalibratedWhite:0.0 alpha:0.15];
-        tailLength = 9;
+        // Go from black to 15% opacity by default in 9 steps. This matches the default spinner.gif roughly.
+        [self setLeadColor:[CPColor colorWithCalibratedWhite:0.0 alpha:1.0]];
+        [self setTailColor:[CPColor colorWithCalibratedWhite:0.0 alpha:0.15]];
+        [self setTailLength:9];
+
+        [_animation startAnimation];
     }
     return self;
 }
 
-- (void)startAnimating
+- (void)startAnimation
 {
-    if (!_isAnimating) {
-        _isAnimating = YES;
-        _step = 1;
-        _timer = [CPTimer scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(timerDidFire) userInfo:nil repeats:YES];
-    }
+    [_animation startAnimation];
 }
 
-- (void)stopAnimating
+- (void)stopAnimation
 {
-    if (_isAnimating) {
-        _isAnimating = NO;
-        [_timer invalidate];
-        [self setNeedsDisplay:YES];
-    }
+    [_animation stopAnimation];
 }
 
 - (BOOL)isAnimating
 {
-    return _isAnimating;
+    [_animation isAnimating];
 }
 
-
-- (void)timerDidFire
+- (void)setLeadColor:(CPColor)aColor
 {
-    if (_step == 12)
-        _step = 1;
-    else
-        _step++;
+    leadColor = aColor;
+    _leadComponents = [self _colorAsComponents:aColor];
+    [self _precalculateStepColors];
+}
 
-    [self setNeedsDisplay:YES];
+- (void)setTailColor:(CPColor)aColor
+{
+    tailColor = aColor;
+    _tailComponents = [self _colorAsComponents:aColor];
+    [self _precalculateStepColors];
+}
+
+- (void)setTailLength:(int)aLength
+{
+    tailLength = aLength;
+    [self _precalculateStepColors];
+}
+
+- (CPArray)_colorAsComponents:(CPColor)aColor
+{
+    r = [];
+    r[0] = [aColor redComponent];
+    r[1] = [aColor greenComponent];
+    r[2] = [aColor blueComponent];
+    r[3] = [aColor alphaComponent];
+    return r;
+}
+
+- (void)_precalculateStepColors
+{
+    if (leadColor === nil || tailColor === nil || tailLength === nil)
+        return;
+
+    _stepColors = [];
+    for (var i=1; i<=12; i++)
+    {
+        var tailness = MIN(tailLength, (11 - i) % 12) / tailLength,
+            leadness = 1-tailness;
+
+        _stepColors[i] = [CPColor colorWithCalibratedRed:_leadComponents[0]*leadness + _tailComponents[0]*tailness
+                                                   green:_leadComponents[1]*leadness + _tailComponents[1]*tailness
+                                                    blue:_leadComponents[2]*leadness + _tailComponents[2]*tailness
+                                                   alpha:_leadComponents[3]*leadness + _tailComponents[3]*tailness];
+    }
 }
 
 - (void)drawRect:(CGrect)rect
 {
-    var bounds = [self bounds];
-    var size = bounds.size.width;
-    var c = [[CPGraphicsContext currentContext] graphicsPort];
+    var bounds = [self bounds],
+        size = bounds.size.width,
+        c = [[CPGraphicsContext currentContext] graphicsPort];
 
     CGContextClearRect(c, rect);
 
-    if (_isAnimating) {
-        var thickness = bounds.size.width * 0.1;
-        var length = bounds.size.width * 0.28;
-        var radius = thickness / 2;
-        var lineRect = CGRectMake(size / 2 - thickness / 2, 0, thickness, length);
-        var minx = CGRectGetMinX(lineRect);
-        var midx = CGRectGetMidX(lineRect);
-        var maxx = CGRectGetMaxX(lineRect);
-        var miny = CGRectGetMinY(lineRect);
-        var midy = CGRectGetMidY(lineRect);
-        var maxy = CGRectGetMaxY(lineRect);
+    if (!_stepColors)
+        return;
 
-        CGContextSetFillColor(c, [CPColor blackColor]);
+    var thickness = bounds.size.width * 0.1,
+        length = bounds.size.width * 0.28,
+        radius = thickness / 2,
+        lineRect = CGRectMake(size / 2 - thickness / 2, 0, thickness, length),
+        minx = CGRectGetMinX(lineRect),
+        midx = CGRectGetMidX(lineRect),
+        maxx = CGRectGetMaxX(lineRect),
+        miny = CGRectGetMinY(lineRect),
+        midy = CGRectGetMidY(lineRect),
+        maxy = CGRectGetMaxY(lineRect),
+        _step = 1;
 
-        for (i=1; i<=12; i++) {
-            var tailness = MIN(tailLength, ((12 - i) + _step) % 12) / tailLength,
-                leadness = 1-tailness,
-                color = [CPColor colorWithCalibratedRed:[leadColor redComponent]*leadness + [tailColor redComponent]*tailness
-                                                  green:[leadColor greenComponent]*leadness + [tailColor greenComponent]*tailness
-                                                   blue:[leadColor blueComponent]*leadness + [tailColor blueComponent]*tailness
-                                                  alpha:[leadColor alphaComponent]*leadness + [tailColor alphaComponent]*tailness];
+    CGContextSetFillColor(c, [CPColor blackColor]);
 
-            CGContextSetFillColor(c, color);
+    CGContextTranslateCTM(c, size/2, size/2);
+    CGContextRotateCTM(c, [_animation currentValue] * (Math.PI*2));
+    CGContextTranslateCTM(c, -size/2, -size/2);
 
-            CGContextBeginPath(c);
-            CGContextMoveToPoint(c, minx, midy);
-            CGContextAddArcToPoint(c, minx, miny, midx, miny, radius);
-            CGContextAddArcToPoint(c, maxx, miny, maxx, midy, radius);
-            CGContextAddArcToPoint(c, maxx, maxy, midx, maxy, radius);
-            CGContextAddArcToPoint(c, minx, maxy, minx, midy, radius);
-            CGContextFillPath(c);
-            CGContextClosePath(c);
-            CGContextTranslateCTM(c, size/2, size/2);
-            CGContextRotateCTM(c, 30*(Math.PI/180));
-            CGContextTranslateCTM(c, -size/2, -size/2);
-        }
+    for (var i=1; i<=12; i++)
+    {
+        CGContextSetFillColor(c, _stepColors[i]);
+
+        CGContextBeginPath(c);
+        CGContextMoveToPoint(c, minx, midy);
+        CGContextAddArcToPoint(c, minx, miny, midx, miny, radius);
+        CGContextAddArcToPoint(c, maxx, miny, maxx, midy, radius);
+        CGContextAddArcToPoint(c, maxx, maxy, midx, maxy, radius);
+        CGContextAddArcToPoint(c, minx, maxy, minx, midy, radius);
+        CGContextFillPath(c);
+        CGContextClosePath(c);
+        CGContextTranslateCTM(c, size/2, size/2);
+        CGContextRotateCTM(c, 30*(Math.PI/180));
+        CGContextTranslateCTM(c, -size/2, -size/2);
     }
 }
 
 @end
 
+@implementation _EKActivityIndicatorViewAnimation : CPAnimation
+{
+    EKActivityIndicatorView activityIndicator;
+}
+
+- (id)initWithActivityIndicator:(EKActivityIndicatorView)anActivityIndicator
+{
+    if (self = [super initWithDuration:1.4 animationCurve:CPAnimationLinear])
+    {
+        [self setFrameRate:24];
+        activityIndicator = anActivityIndicator;
+    }
+    return self;
+}
+
+- (void)setCurrentProgress:(float)aProgress
+{
+    _progress = aProgress;
+    [activityIndicator setNeedsDisplay:YES];
+}
+
+- (void)animationTimerDidFire:(CPTimer)aTimer
+{
+    var currentTime = new Date(),
+        progress = ([self currentProgress] + (currentTime - _lastTime) / (_duration * 1000.0)) % 1.0;
+
+    _lastTime = currentTime;
+
+    ++ACTUAL_FRAME_RATE;
+
+    [self setCurrentProgress:progress];
+
+    // Never end.
+}
+
+@end
