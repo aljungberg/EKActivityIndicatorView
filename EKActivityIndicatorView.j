@@ -1,3 +1,5 @@
+var SharedEKActivityIndicatorViewAnimation = nil;
+
 @implementation EKActivityIndicatorView : CPView
 {
     CPAnimation _animation;
@@ -13,31 +15,31 @@
 {
     self = [super initWithFrame:aFrame];
     if(self) {
-        _animation = [[_EKActivityIndicatorViewAnimation alloc] initWithActivityIndicator:self];
+        _animation = [_EKActivityIndicatorViewAnimation sharedIndicatorViewAnimation];
 
         // Go from black to 15% opacity by default in 9 steps. This matches the default spinner.gif roughly.
         [self setLeadColor:[CPColor colorWithCalibratedWhite:0.0 alpha:1.0]];
         [self setTailColor:[CPColor colorWithCalibratedWhite:0.0 alpha:0.15]];
         [self setTailLength:9];
 
-        [_animation startAnimation];
+        [self startAnimation];
     }
     return self;
 }
 
 - (void)startAnimation
 {
-    [_animation startAnimation];
+    [_animation startActivityIndicatorAnimation:self];
 }
 
 - (void)stopAnimation
 {
-    [_animation stopAnimation];
+    [_animation stopActivityIndicatorAnimation:self];
 }
 
 - (BOOL)isAnimating
 {
-    [_animation isAnimating];
+    return [_animation isAnimatingActivityIndicator:self];
 }
 
 - (void)setLeadColor:(CPColor)aColor
@@ -90,16 +92,16 @@
 
 - (void)drawRect:(CGrect)rect
 {
-    var bounds = [self bounds],
-        size = bounds.size.width,
-        c = [[CPGraphicsContext currentContext] graphicsPort];
+    var c = [[CPGraphicsContext currentContext] graphicsPort];
 
     CGContextClearRect(c, rect);
 
     if (!_stepColors)
         return;
 
-    var thickness = bounds.size.width * 0.1,
+    var bounds = [self bounds],
+        size = bounds.size.width,
+        thickness = bounds.size.width * 0.1,
         length = bounds.size.width * 0.28,
         radius = thickness / 2,
         lineRect = CGRectMake(size / 2 - thickness / 2, 0, thickness, length),
@@ -110,8 +112,6 @@
         midy = CGRectGetMidY(lineRect),
         maxy = CGRectGetMaxY(lineRect),
         _step = 1;
-
-    CGContextSetFillColor(c, [CPColor blackColor]);
 
     CGContextTranslateCTM(c, size/2, size/2);
     CGContextRotateCTM(c, [_animation currentValue] * (Math.PI*2));
@@ -139,23 +139,57 @@
 
 @implementation _EKActivityIndicatorViewAnimation : CPAnimation
 {
-    EKActivityIndicatorView activityIndicator;
+    CPArray activityIndicators;
 }
 
-- (id)initWithActivityIndicator:(EKActivityIndicatorView)anActivityIndicator
++ (_EKActivityIndicatorViewAnimation)sharedIndicatorViewAnimation
+{
+    if (SharedEKActivityIndicatorViewAnimation === nil)
+        SharedEKActivityIndicatorViewAnimation = [_EKActivityIndicatorViewAnimation new];
+    return SharedEKActivityIndicatorViewAnimation;
+}
+
+- (id)init
 {
     if (self = [super initWithDuration:1.4 animationCurve:CPAnimationLinear])
     {
         [self setFrameRate:24];
-        activityIndicator = anActivityIndicator;
+        activityIndicators = [];
     }
     return self;
+}
+
+- (void)startActivityIndicatorAnimation:(EKActivityIndicatorView)anActivityIndicator
+{
+    if ([activityIndicators containsObject:anActivityIndicator])
+        return;
+
+    [activityIndicators addObject:anActivityIndicator];
+
+    if (activityIndicators.length == 1)
+        [self startAnimation];
+}
+
+- (void)stopActivityIndicatorAnimation:(EKActivityIndicatorView)anActivityIndicator
+{
+    [activityIndicators removeObject:anActivityIndicator];
+
+    if (activityIndicators.length == 0)
+        [self stopAnimation];
+}
+
+- (void)isAnimatingActivityIndicator:(EKActivityIndicatorView)anActivityIndicator
+{
+    return [activityIndicators containsObject:anActivityIndicator];
 }
 
 - (void)setCurrentProgress:(float)aProgress
 {
     _progress = aProgress;
-    [activityIndicator setNeedsDisplay:YES];
+
+    var count = activityIndicators.length;
+    while (count-- >= 0)
+        [activityIndicators[count] setNeedsDisplay:YES];
 }
 
 - (void)animationTimerDidFire:(CPTimer)aTimer
