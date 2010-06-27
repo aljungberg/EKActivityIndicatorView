@@ -3,6 +3,8 @@ var SharedEKActivityIndicatorViewAnimation = nil;
 @implementation EKActivityIndicatorView : CPView
 {
     CPAnimation _animation;
+    BOOL        _shouldAnimate;
+
     CPColor     leadColor @accessors;
     CPArray     _leadComponents;
     CPColor     tailColor @accessors;
@@ -35,6 +37,7 @@ var SharedEKActivityIndicatorViewAnimation = nil;
         [self setTailColor:[CPColor colorWithCalibratedWhite:0.0 alpha:0.15]];
         [self setTailLength:9];
 
+        _shouldAnimate = YES;
         [self startAnimation];
     }
     return self;
@@ -42,17 +45,44 @@ var SharedEKActivityIndicatorViewAnimation = nil;
 
 - (void)startAnimation
 {
-    [_animation startActivityIndicatorAnimation:self];
+    _shouldAnimate = YES;
+    [self _animateAsNeeded];
 }
 
 - (void)stopAnimation
 {
-    [_animation stopActivityIndicatorAnimation:self];
+    _shouldAnimate = NO;
+    [self _animateAsNeeded];
+}
+
+- (void)_animateAsNeeded
+{
+    // Don't spend CPU cycles driving the animation if we're off screen.
+    var theWindow = [self window];
+    if ([self isHiddenOrHasHiddenAncestor] || theWindow  === nil || ![theWindow isVisible])
+        [_animation stopActivityIndicatorAnimation:self];
+    else if (_shouldAnimate)
+        [_animation startActivityIndicatorAnimation:self];
+}
+
+- (void)viewDidMoveToWindow
+{
+    [self _animateAsNeeded];
+}
+
+- (void)viewDidHide
+{
+    [self _animateAsNeeded];
+}
+
+- (void)viewDidUnhide
+{
+    [self _animateAsNeeded];
 }
 
 - (BOOL)isAnimating
 {
-    return [_animation isAnimatingActivityIndicator:self];
+    return _shouldAnimate;
 }
 
 - (void)setLeadColor:(CPColor)aColor
