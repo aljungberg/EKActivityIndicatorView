@@ -59,7 +59,7 @@ var SharedEKActivityIndicatorViewAnimation = nil;
 {
     // Don't spend CPU cycles driving the animation if we're off screen.
     var theWindow = [self window];
-    if ([self isHiddenOrHasHiddenAncestor] || theWindow  === nil || ![theWindow isVisible])
+    if ([self isHiddenOrHasHiddenAncestor] || theWindow  === nil /*|| ![theWindow isVisible] -- can't be observed today */)
         [_animation stopActivityIndicatorAnimation:self];
     else if (_shouldAnimate)
         [_animation startActivityIndicatorAnimation:self];
@@ -215,6 +215,7 @@ var SharedEKActivityIndicatorViewAnimation = nil;
         return;
 
     [activityIndicators addObject:anActivityIndicator];
+    //console.log("animators: "+activityIndicators);
 
     if (activityIndicators.length == 1)
         [self startAnimation];
@@ -223,6 +224,7 @@ var SharedEKActivityIndicatorViewAnimation = nil;
 - (void)stopActivityIndicatorAnimation:(EKActivityIndicatorView)anActivityIndicator
 {
     [activityIndicators removeObject:anActivityIndicator];
+    //console.log("animators: "+activityIndicators);
 
     if (activityIndicators.length == 0)
         [self stopAnimation];
